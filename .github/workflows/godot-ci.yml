@@ -1,100 +1,52 @@
-name: Deploy to Itch.io
+# Adapted from https://raw.githubusercontent.com/RudyMis/Bubbles/master/.github/workflows/godot-ci.yml
+
+name: godot-ci
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [ main ]
 
 env:
-  PROJECT_NAME: "modded-player-demo" # Update if needed
-  BUTLER_API_KEY: ${{ secrets.ITCHIO_TOKEN }}
-  ITCHIO_USERNAME: ${{ secrets.ITCHIO_USERNAME }}
-  GODOT_VERSION: "4.3-stable" # Change this when a new version is released
+  EXPORT_NAME: modded-platformer-demo
+  GODOT_VERSION: 4.4.1
 
 jobs:
-  Build:
+  export-web:
+    name: Web Export
     runs-on: ubuntu-latest
-
+    container:
+      image: barichello/godot-ci:4.4.1
     steps:
-      - name: Checkout Source Code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Cache Export Templates
-        uses: actions/cache@v4
+      - name: Setup
+        run: |
+          mkdir -v -p ~/.local/share/godot/templates
+          mv /root/.local/share/godot/templates/${GODOT_VERSION}.stable ~/.local/share/godot/templates/${GODOT_VERSION}.stable
+          apt-get update && apt-get install -y rsync
+
+      - name: Web Build
+        run: |
+          cd project
+          mkdir ./$EXPORT_NAME
+          rsync -Rr . ./$EXPORT_NAME
+          cd $EXPORT_NAME
+          mkdir -v -p build/web
+          godot -v --export "HTML5" build/web/index.html
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v2
         with:
-          path: ~/.local/share/godot/export_templates/${{ env.GODOT_VERSION }}
-          key: godot-templates-${{ env.GODOT_VERSION }}
+          name: web
+          path: project/${{ env.EXPORT_NAME }}/build/web
 
-      - name: Download Godot Binary
-        run: |
-          echo "Downloading Godot ${GODOT_VERSION}..."
-          URL="https://downloads.tuxfamily.org/godotengine/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
-          curl -L -o godot.zip "$URL"
-
-          if ! file godot.zip | grep -q 'Zip archive data'; then
-            echo "Godot download failed — check version or URL."
-            exit 1
-          fi
-
-          unzip -q godot.zip
-          mv Godot_v*_linux.x86_64 godot
-          chmod +x godot
-          echo "Godot binary ready."
-
-      - name: Download Export Templates
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: |
-          echo "Downloading export templates for ${GODOT_VERSION}..."
-          URL="https://downloads.tuxfamily.org/godotengine/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_export_templates.tpz"
-          curl -L -o export_templates.tpz "$URL"
-
-          if ! file export_templates.tpz | grep -q 'Zip archive data'; then
-            echo "Templates download failed — check version or URL."
-            exit 1
-          fi
-
-          unzip -q export_templates.tpz
-          mkdir -p ~/.local/share/godot/export_templates/${GODOT_VERSION}
-          mv templates/* ~/.local/share/godot/export_templates/${GODOT_VERSION}/ || true
-          echo "Export templates installed."
-
-      - name: Build HTML Export
-        run: |
-          ./godot --headless --export-release "html" "exports/html/index.html"
-
-      - name: Zip HTML Export
-        run: |
-          cd exports/html
-          zip -qr "../${PROJECT_NAME}-html.zip" .
-          cd -
-
-      - name: Upload Export Artifacts
-        uses: actions/upload-artifact@v4
+      - name: Publish to itch.io
+        uses: KikimoraGames/itch-publish@v0.0.3
         with:
-          name: exports
-          path: exports
+          butlerAPIKey: ${{ secrets.ITCHIO_TOKEN }}
+          itchUsername: judahsan         
+          itchGameId: modded-platformer-demo            
+          buildChannel: web
+          gameData: project/${{ env.EXPORT_NAME }}/build/web
 
-  Publish:
-    needs: Build
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Download Export Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: exports
-          path: exports
-
-      - name: Download Butler
-        run: |
-          echo "Downloading Butler..."
-          curl -L -o butler.zip https://broth.itch.ovh/butler/linux-amd64/LATEST/archive/default
-          unzip -q butler.zip
-          chmod +x butler
-          ./butler -V
-
-      - name: Login To Butler
-        run: ./butler login
-
-      - name: Push To Itch.io
-        run: |
-          echo "Uploading to Itch.io..."
-          ./butler push ./exports/${PROJECT_NAME}-html.zip ${ITCHIO_USERNAME}/${PROJECT_NAME}:html
