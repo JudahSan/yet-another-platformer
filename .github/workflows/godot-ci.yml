@@ -1,36 +1,51 @@
-name: Godot CI / Web Deployment
+# Adapted from https://raw.githubusercontent.com/RudyMis/Bubbles/master/.github/workflows/godot-ci.yml
+
+name: godot-ci
 
 on:
   push:
     branches: [ main ]
 
 env:
-  GODOT_PROJECT_PATH: project/
   EXPORT_NAME: modded-platformer-demo
+  GODOT_VERSION: 4.4.1
 
 jobs:
   export-web:
-    name: Web Export & Publish
+    name: Web Export
     runs-on: ubuntu-latest
-    
+    container:
+      image: barichello/godot-ci:4.4.1
     steps:
-      - name: Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build Web Export
-        uses: abarichello/godot-ci@v4
+      - name: Setup
+        run: |
+          mkdir -v -p ~/.local/share/godot/templates
+          mv /root/.local/share/godot/templates/${GODOT_VERSION}.stable ~/.local/share/godot/templates/${GODOT_VERSION}.stable
+          apt-get update && apt-get install -y rsync
+
+      - name: Web Build
+        run: |
+          cd project
+          mkdir ./$EXPORT_NAME
+          rsync -Rr . ./$EXPORT_NAME
+          cd $EXPORT_NAME
+          mkdir -v -p build/web
+          godot -v --export "HTML5" build/web/index.html
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
         with:
-          godot-version: 4.2.1
-          project-path: ${{ env.GODOT_PROJECT_PATH }}
-          export-platform: HTML5
-          export-path: build/web/index.html
-          export-name: ${{ env.EXPORT_NAME }}
+          name: web
+          path: project/${{ env.EXPORT_NAME }}/build/web
 
       - name: Publish to itch.io
         uses: KikimoraGames/itch-publish@v0.0.3
         with:
           butlerAPIKey: ${{ secrets.ITCHIO_TOKEN }}
-          itchUsername: judahsan
-          itchGameId: modded-platformer-demo
+          itchUsername: judahsan         
+          itchGameId: modded-platformer-demo            
           buildChannel: web
-          gameData: ${{ env.GODOT_PROJECT_PATH }}build/web/
+          gameData: project/${{ env.EXPORT_NAME }}/build/web
