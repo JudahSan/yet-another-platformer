@@ -27,8 +27,9 @@ jobs:
       - name: Setup Godot and export templates
         uses: chickensoft-games/setup-godot@v2
         with:
-          godot-version: ${{ env.GODOT_VERSION }}
-          export-templates: true
+          version: ${{ env.GODOT_VERSION }}
+          use-dotnet: false
+          include-templates: true
 
       - name: Install Dependencies
         run: apt-get update && apt-get install -y rsync
