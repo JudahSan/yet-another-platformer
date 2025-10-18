@@ -16,18 +16,17 @@ jobs:
       - name: Setup Godot
         uses: chickensoft-games/setup-godot@v1
         with:
-          version: '4.4.0'
+          version: "4.4.0"
           include-templates: true
+          godot-shart-release: false
+
+      - name: Re-import Resources
+        run: godot --headless --path . --quit
 
       - name: Export game (Web)
         run: |
           mkdir -p exports/web
           godot --headless --export-release "Web" exports/web/index.html
-
-          # TROUBLESHOOTING: Check if the files were created
-          echo "--- Export Directory Contents ---"
-          ls -R exports/web/
-          echo "---------------------------------"
 
       # OPTIONAL: Add other exports here
       # - name: Export game (Linux)
