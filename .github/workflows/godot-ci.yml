@@ -23,7 +23,6 @@ jobs:
 
       - name: Build Web Export
         run: |
-          cd project
           mkdir -p build/web
           godot -v --headless --export-release "HTML5" build/web/index.html
 
@@ -40,4 +39,4 @@ jobs:
           itchUsername: judahsan
           itchGameId: modded-platformer-demo
           buildChannel: web
-          gameData: project/build/web
+          gameData: build/web
