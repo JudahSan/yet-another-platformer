@@ -6,69 +6,62 @@ on:
 
 env:
   EXPORT_NAME: modded-platformer-demo
-  GODOT_VERSION: 4.4.1 # NOTE: Use a valid stable version (e.g., 4.2.1)
+  GODOT_VERSION: 4.4.1 # NOTE: Still using a potentially invalid Godot version
 
 jobs:
   export-web:
     name: Web Export
-    runs-on: ubuntu-latest # Standard runner (no custom container needed)
+    runs-on: ubuntu-latest
     
+    # NOTE: This 'container' block CONFLICTS with the 'game-ci/setup-godot@v2' action.
+    container:
+      image: barichello/godot-ci:4.4.1
+      
     steps:
-      # 1. Checkout (Correctly indented under 'steps:')
       - name: Checkout
         uses: actions/checkout@v4
-    
-      # 2. Cache Godot export templates (Correctly indented under 'steps:')
+      
       - name: Cache Godot export templates
         uses: actions/cache@v4
         with:
           path: ~/.local/share/godot/export_templates
           key: godot-templates-${{ env.GODOT_VERSION }}-${{ runner.os }}-${{ hashFiles('.github/workflows/godot-ci.yml') }}
 
-      # 3. Setup Godot and export templates (The action handles the heavy lifting)
       - name: Setup Godot and export templates
         uses: game-ci/setup-godot@v2
         with:
           godot-version: ${{ env.GODOT_VERSION }}
           export-templates: true
-    
-      # 4. Install Dependencies (rsync is often needed for artifacts/publishing)
+      
       - name: Install Dependencies
         run: sudo apt-get update && sudo apt-get install -y rsync
-    
-      # 5. Debug: list export templates
+      
       - name: Debug: list export templates
         run: |
           echo "Templates dir:"
           ls -la "$HOME/.local/share/godot/export_templates" || true
           ls -la "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable" || true
-    
-      # 6. Build Web Export (Project is in root, so no 'cd project' needed)
+      
       - name: Build Web Export
         run: |
           mkdir -p build/web
-          # The 'godot' command is now available due to 'game-ci/setup-godot'
           godot -v --headless --export-release "Web" build/web/index.html
-    
-      # 7. Debug: show build output
+      
       - name: Debug: show build output
         run: ls -la build/web || true
-    
-      # 8. Upload Artifacts
+      
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: web
           path: build/web
-    
-      # 9. Publish to itch.io
+      
       - name: Publish to itch.io
         if: success()
         uses: KikimoraGames/itch-publish@v0.0.3
         with:
-          butlerAPIKey: ${{ secrets.BUTLER_API_KEY }} # Changed token name for clarity/convention
+          butlerAPIKey: ${{ secrets.BUTLER_API_KEY }} # Corrected secret name convention
           itchUsername: judahsan
           itchGameId: modded-platformer-demo
           buildChannel: web
           gameData: build/web
-          
