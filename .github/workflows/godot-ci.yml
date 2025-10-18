@@ -4,9 +4,10 @@ on:
   workflow_dispatch:
 
 env:
-  PROJECT_NAME: "modded-player-demo" # Update as needed
+  PROJECT_NAME: "modded-player-demo" # Update if needed
   BUTLER_API_KEY: ${{ secrets.ITCHIO_TOKEN }}
   ITCHIO_USERNAME: ${{ secrets.ITCHIO_USERNAME }}
+  FALLBACK_VERSION: "4.3-stable" # Fallback if auto-detect or download fails
 
 jobs:
   Build:
@@ -16,39 +17,75 @@ jobs:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      - name: Get Godot Version
-        id: godot
+      - name: Detect Godot Version
+        id: version
         run: |
-          VERSION=$(grep '^config/features' project.godot | cut -d '"' -f 2)
-          echo "GODOT_VERSION=$VERSION" >> $GITHUB_ENV
-          echo "Detected Godot version: $VERSION"
+          VERSION=$(grep -E '^config/version=' project.godot | cut -d '"' -f 2 || true)
+          if [ -z "$VERSION" ]; then
+            VERSION=$(grep -E '^config/features' project.godot | cut -d '"' -f 2 || true)
+          fi
 
-      - name: Cache Godot Export Templates
+          if [ -z "$VERSION" ]; then
+            echo "Could not auto-detect version, using fallback: $FALLBACK_VERSION"
+            VERSION="$FALLBACK_VERSION"
+          fi
+
+          # Normalize to include '-stable' if missing
+          if [[ "$VERSION" != *"stable"* ]]; then
+            VERSION="${VERSION}-stable"
+          fi
+
+          echo "Detected Godot version: $VERSION"
+          echo "GODOT_VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Cache Export Templates
         uses: actions/cache@v4
         with:
-          path: ~/.local/share/godot/export_templates/${{ env.GODOT_VERSION }}.stable
+          path: ~/.local/share/godot/export_templates/${{ env.GODOT_VERSION }}
           key: godot-templates-${{ env.GODOT_VERSION }}
 
-      - name: Download Godot Binary (with fallback)
+      - name: Download Godot Binary (with validation and fallback)
         run: |
           echo "Downloading Godot v$GODOT_VERSION..."
-          curl --retry 5 --retry-delay 10 -L -o godot.zip \
-            https://downloads.godotengine.org/Godot_v$GODOT_VERSION-stable_linux.x86_64.zip \
-            || curl -L -o godot.zip https://downloads.tuxfamily.org/godotengine/$GODOT_VERSION/Godot_v$GODOT_VERSION-stable_linux.x86_64.zip
-          unzip -q godot.zip
-          mv Godot_v$GODOT_VERSION-stable_linux.x86_64 godot
-          chmod +x godot
+          PRIMARY_URL="https://downloads.godotengine.org/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          FALLBACK_URL="https://downloads.tuxfamily.org/godotengine/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
 
-      - name: Download Godot Export Templates (with fallback)
+          curl --retry 5 --retry-delay 10 -L -o godot.zip "$PRIMARY_URL" || curl -L -o godot.zip "$FALLBACK_URL"
+
+          # Verify file is a ZIP
+          if ! file godot.zip | grep -q 'Zip archive data'; then
+            echo "Download failed for $GODOT_VERSION, falling back to $FALLBACK_VERSION..."
+            curl -L -o godot.zip "https://downloads.godotengine.org/Godot_v${FALLBACK_VERSION}_linux.x86_64.zip"
+          fi
+
+          if ! file godot.zip | grep -q 'Zip archive data'; then
+            echo "Still invalid. Please check Godot version or URLs."
+            exit 1
+          fi
+
+          unzip -q godot.zip
+          mv Godot_v*_linux.x86_64 godot
+          chmod +x godot
+          echo "Godot binary ready."
+
+      - name: Download Export Templates (with fallback)
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
-          echo "Downloading export templates for v$GODOT_VERSION..."
-          curl --retry 5 --retry-delay 10 -L -o export_templates.zip \
-            https://downloads.godotengine.org/Godot_v$GODOT_VERSION-stable_export_templates.tpz \
-            || curl -L -o export_templates.zip https://downloads.tuxfamily.org/godotengine/$GODOT_VERSION/Godot_v$GODOT_VERSION-stable_export_templates.tpz
+          echo "Downloading export templates for $GODOT_VERSION..."
+          PRIMARY_URL="https://downloads.godotengine.org/Godot_v${GODOT_VERSION}_export_templates.tpz"
+          FALLBACK_URL="https://downloads.tuxfamily.org/godotengine/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_export_templates.tpz"
+
+          curl --retry 5 --retry-delay 10 -L -o export_templates.zip "$PRIMARY_URL" || curl -L -o export_templates.zip "$FALLBACK_URL"
+
+          if ! file export_templates.zip | grep -q 'Zip archive data'; then
+            echo "Templates failed for $GODOT_VERSION, trying fallback $FALLBACK_VERSION..."
+            curl -L -o export_templates.zip "https://downloads.godotengine.org/Godot_v${FALLBACK_VERSION}_export_templates.tpz"
+          fi
+
           unzip -q export_templates.zip
-          mkdir -p ~/.local/share/godot/export_templates/$GODOT_VERSION.stable
-          mv ./templates/* ~/.local/share/godot/export_templates/$GODOT_VERSION.stable
+          mkdir -p ~/.local/share/godot/export_templates/$GODOT_VERSION
+          mv ./templates/* ~/.local/share/godot/export_templates/$GODOT_VERSION || true
+          echo "Export templates installed."
 
       - name: Build HTML Export
         run: |
@@ -71,7 +108,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Download Artifacts
+      - name: Download Export Artifacts
         uses: actions/download-artifact@v4
         with:
           name: exports
