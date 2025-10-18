@@ -25,7 +25,7 @@ jobs:
           key: godot-templates-${{ env.GODOT_VERSION }}-${{ runner.os }}-${{ hashFiles('.github/workflows/godot-ci.yml') }}
 
       - name: Setup Godot and export templates
-        uses: game-ci/setup-godot@v2
+        uses: chickensoft-games/setup-godot@v2
         with:
           godot-version: ${{ env.GODOT_VERSION }}
           export-templates: true
@@ -43,7 +43,10 @@ jobs:
         run: |
           mkdir -p build/web
           godot -v --headless --export-release "Web" build/web/index.html
-
+      
+      - name: Debug- show build output
+        run: ls -la build/web || true
+        
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
