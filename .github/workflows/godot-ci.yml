@@ -6,21 +6,18 @@ on:
 
 env:
   EXPORT_NAME: modded-platformer-demo
-  GODOT_VERSION: 4.4.1 # NOTE: Still using a potentially invalid Godot version
+  GODOT_VERSION: 4.4.1
 
 jobs:
   export-web:
     name: Web Export
     runs-on: ubuntu-latest
-    
-    # NOTE: This 'container' block CONFLICTS with the 'game-ci/setup-godot@v2' action.
     container:
       image: barichello/godot-ci:4.4.1
-      
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      
+
       - name: Cache Godot export templates
         uses: actions/cache@v4
         with:
@@ -32,35 +29,31 @@ jobs:
         with:
           godot-version: ${{ env.GODOT_VERSION }}
           export-templates: true
-      
+
       - name: Install Dependencies
-        run: sudo apt-get update && sudo apt-get install -y rsync
-      
-      - name: Debug: list export templates
+        run: apt-get update && apt-get install -y rsync
+
+      - name: Debug- list export templates
         run: |
           echo "Templates dir:"
           ls -la "$HOME/.local/share/godot/export_templates" || true
           ls -la "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable" || true
-      
+
       - name: Build Web Export
         run: |
           mkdir -p build/web
           godot -v --headless --export-release "Web" build/web/index.html
-      
-      - name: Debug: show build output
-        run: ls -la build/web || true
-      
+
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: web
-          path: build/web
-      
+          path: project/build/web
+
       - name: Publish to itch.io
-        if: success()
         uses: KikimoraGames/itch-publish@v0.0.3
         with:
-          butlerAPIKey: ${{ secrets.BUTLER_API_KEY }} # Corrected secret name convention
+          butlerAPIKey: ${{ secrets.ITCHIO_TOKEN }}
           itchUsername: judahsan
           itchGameId: modded-platformer-demo
           buildChannel: web
