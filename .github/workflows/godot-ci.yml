@@ -1,55 +1,66 @@
 name: Deploy to Itch.io
 
-# Manually trigger by going to this workflow in the repository actions tab
-on: workflow_dispatch
+on:
+  workflow_dispatch:
 
 env:
-  BUTLER_API_KEY: ${{secrets.ITCHIO_TOKEN}} # Repository Settings -> Secrets and variables -> Actions -> New repository secret
-  ITCHIO_USERNAME: ${{secrets.ITCHIO_USERNAME}}
-  PROJECT_NAME: "modded-player-demo" # See README.md about project, channel, and export file naming conventions
+  PROJECT_NAME: "modded-player-demo" # Update as needed
+  BUTLER_API_KEY: ${{ secrets.ITCHIO_TOKEN }}
+  ITCHIO_USERNAME: ${{ secrets.ITCHIO_USERNAME }}
 
 jobs:
   Build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
       - name: Get Godot Version
-        run: echo "GODOT_VERSION=$(grep '^config/features' project.godot | cut -d "\"" -f 2)" >> $GITHUB_ENV
-
-      - name: Download Godot
+        id: godot
         run: |
-          curl --retry 5 --retry-delay 10 -L -o godot.zip https://downloads.tuxfamily.org/godotengine/$GODOT_VERSION/Godot_v$GODOT_VERSION-stable_linux.x86_64.zip
-          unzip godot.zip
+          VERSION=$(grep '^config/features' project.godot | cut -d '"' -f 2)
+          echo "GODOT_VERSION=$VERSION" >> $GITHUB_ENV
+          echo "Detected Godot version: $VERSION"
+
+      - name: Cache Godot Export Templates
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/godot/export_templates/${{ env.GODOT_VERSION }}.stable
+          key: godot-templates-${{ env.GODOT_VERSION }}
+
+      - name: Download Godot Binary (with fallback)
+        run: |
+          echo "Downloading Godot v$GODOT_VERSION..."
+          curl --retry 5 --retry-delay 10 -L -o godot.zip \
+            https://downloads.godotengine.org/Godot_v$GODOT_VERSION-stable_linux.x86_64.zip \
+            || curl -L -o godot.zip https://downloads.tuxfamily.org/godotengine/$GODOT_VERSION/Godot_v$GODOT_VERSION-stable_linux.x86_64.zip
+          unzip -q godot.zip
           mv Godot_v$GODOT_VERSION-stable_linux.x86_64 godot
           chmod +x godot
 
-      - name: Download Godot Export Templates
+      - name: Download Godot Export Templates (with fallback)
+        if: steps.cache.outputs.cache-hit != 'true'
         run: |
-          curl --retry 5 --retry-delay 10 -L -o export_templates.zip https://downloads.tuxfamily.org/godotengine/$GODOT_VERSION/Godot_v$GODOT_VERSION-stable_export_templates.tpz
-          unzip export_templates.zip
-
-      - name: Install Export Templates
-        run: |
+          echo "Downloading export templates for v$GODOT_VERSION..."
+          curl --retry 5 --retry-delay 10 -L -o export_templates.zip \
+            https://downloads.godotengine.org/Godot_v$GODOT_VERSION-stable_export_templates.tpz \
+            || curl -L -o export_templates.zip https://downloads.tuxfamily.org/godotengine/$GODOT_VERSION/Godot_v$GODOT_VERSION-stable_export_templates.tpz
+          unzip -q export_templates.zip
           mkdir -p ~/.local/share/godot/export_templates/$GODOT_VERSION.stable
           mv ./templates/* ~/.local/share/godot/export_templates/$GODOT_VERSION.stable
 
-      - name: Build
+      - name: Build HTML Export
         run: |
-          ./godot --headless --export-release html
-          # ./godot --headless --export-release linux
-          # ./godot --headless --export-release macos
-          # ./godot --headless --export-release windows
+          ./godot --headless --export-release "html" "exports/html/index.html"
 
       - name: Zip HTML Export
         run: |
           cd exports/html
-          zip $PROJECT_NAME-html.zip -r -m *
-          mv $PROJECT_NAME-html.zip ..
+          zip -qr "../$PROJECT_NAME-html.zip" .
           cd -
 
-      - name: Save Artifacts for Next Job
+      - name: Upload Export Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: exports
@@ -58,8 +69,9 @@ jobs:
   Publish:
     needs: Build
     runs-on: ubuntu-latest
+
     steps:
-      - name: Get Artifacts
+      - name: Download Artifacts
         uses: actions/download-artifact@v4
         with:
           name: exports
@@ -67,17 +79,16 @@ jobs:
 
       - name: Download Butler
         run: |
+          echo "Downloading Butler..."
           curl -L -o butler.zip https://broth.itch.ovh/butler/linux-amd64/LATEST/archive/default
-          unzip butler.zip
+          unzip -q butler.zip
           chmod +x butler
           ./butler -V
 
       - name: Login To Butler
         run: ./butler login
 
-      - name: Push To Itch
+      - name: Push To Itch.io
         run: |
+          echo "Uploading to Itch.io..."
           ./butler push ./exports/$PROJECT_NAME-html.zip $ITCHIO_USERNAME/$PROJECT_NAME:html
-          # ./butler push ./exports/$PROJECT_NAME-linux.zip $ITCHIO_USERNAME/$PROJECT_NAME:linux
-          # ./butler push ./exports/$PROJECT_NAME-macos.zip $ITCHIO_USERNAME/$PROJECT_NAME:mac
-          # ./butler push ./exports/$PROJECT_NAME-windows.exe $ITCHIO_USERNAME/$PROJECT_NAME:windows
