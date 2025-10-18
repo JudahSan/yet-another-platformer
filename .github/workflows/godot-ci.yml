@@ -24,6 +24,11 @@ jobs:
           mkdir -p exports/web
           godot --headless --export-release "Web" exports/web/index.html
 
+          # TROUBLESHOOTING: Check if the files were created
+          echo "--- Export Directory Contents ---"
+          ls -R exports/web/
+          echo "---------------------------------"
+
       # OPTIONAL: Add other exports here
       # - name: Export game (Linux)
       #   run: |
