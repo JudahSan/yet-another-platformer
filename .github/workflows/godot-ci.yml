@@ -16,7 +16,7 @@ jobs:
       - name: Setup Godot
         uses: chickensoft-games/setup-godot@v1
         with:
-          godot-version: 4.4
+          godot-version: '4.4.0'
           export-templates: true
 
       - name: Export game (Web)
