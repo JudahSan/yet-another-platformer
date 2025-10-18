@@ -40,7 +40,16 @@ func _ready():
 	_set_flag_position(flag_position)
 
 
-func _on_body_entered(_body):
-	if flag_position == FlagPosition.DOWN:
+func _on_body_entered(body):
+	if body.name == "Player" and flag_position == FlagPosition.DOWN:
 		flag_position = FlagPosition.UP
-		Global.raise_flag(self)
+		_sprite.play("up")
+
+		# Get current scene path
+		var current_scene = get_tree().current_scene.scene_file_path
+
+		# Change to next scene depending on current one
+		if current_scene == "res://scenes/level1.tscn":
+			get_tree().change_scene_to_file("res://scenes/level2.tscn")
+		elif current_scene == "res://scenes/level2.tscn":
+			get_tree().change_scene_to_file("res://scenes/game_over.tscn")

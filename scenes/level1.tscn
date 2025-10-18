@@ -221,7 +221,7 @@ position = Vector2(1920, 576)
 position = Vector2(4096, 960)
 
 [node name="Flag" parent="." instance=ExtResource("12_dkbog")]
-position = Vector2(4192, 320)
+position = Vector2(4192, 319)
 
 [node name="MultiplayerCamera" type="Camera2D" parent="."]
 position = Vector2(0, 15)
