@@ -12,14 +12,14 @@ config_version=5
 
 config/name="Moddable Platformer"
 config/version="v1.5-5-g6037d5c"
-run/main_scene="res://scenes/level1.tscn"
+run/main_scene="uid://dayw6uyg67ia3"
 config/features=PackedStringArray("4.5", "GL Compatibility")
 config/icon="res://icon.svg"
 
 [autoload]
 
-Music="*res://scenes/music.tscn"
 Global="*res://scripts/global.gd"
+Music="*res://scenes/music.tscn"
 
 [display]
 
