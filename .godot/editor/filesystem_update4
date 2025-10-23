@@ -1,5 +1,8 @@
-res://scenes/music.tscn
+res://scenes/level2.tscn
 res://components/player/spriteframes-red.tres
 res://spaces/tileset-a.tres
 res://components/flag/flag-spriteframes-green.tres
-res://scenes/level1.tscn
+res://orbiting_platform_controller.gd
+res://scenes/rotate_platform.tscn
+res://scenes/platform.tscn
+res://scenes/platform_orbit.tscn

@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://cjtn1qsm2pa6y"]
+
+[ext_resource type="Script" uid="uid://dbnrt3d54w8s4" path="res://orbiting_platform_controller.gd" id="1_j7x7c"]
+
+[node name="OrbitingPlatformController" type="Node2D"]
+script = ExtResource("1_j7x7c")
